@@ -12,6 +12,6 @@ export type ItemRequest = {
   requestorName: string;
   itemRequested: string;
   creationDate: Date;
-  lastEditDate: Date;
+  lastEditedDate: Date;
   status: RequestStatus;
 };

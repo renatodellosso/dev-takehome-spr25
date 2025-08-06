@@ -2,7 +2,7 @@ import { ItemRequest, RequestStatus } from "@/lib/types/request";
 import { isValidItemRequest } from "@/lib/validation/requests";
 
 describe(isValidItemRequest.name, () => {
-  function getTestRequest() {
+  function getTestRequest(): ItemRequest {
     return {
       requestorName: "Test User",
       itemRequested: "Test Item",
@@ -48,7 +48,7 @@ describe(isValidItemRequest.name, () => {
     const request: ItemRequest = {
       ...getTestRequest(),
       creationDate: new Date("invalid-date"),
-      lastEditedDate: new Date("invalid-date"),
+      lastEditDate: new Date("invalid-date"),
     };
 
     expect(isValidItemRequest(request)).toBe(false);
@@ -82,7 +82,7 @@ describe(isValidItemRequest.name, () => {
       requestorName: 123,
       itemRequested: true,
       creationDate: "not-a-date",
-      lastEditedDate: "also-not-a-date",
+      lastEditDate: "also-not-a-date",
       status: 42,
     };
 

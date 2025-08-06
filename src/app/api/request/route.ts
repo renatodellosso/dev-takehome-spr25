@@ -13,7 +13,7 @@ export async function PUT(request: Request) {
     requestorName: requestData.requestorName,
     itemRequested: requestData.itemRequested,
     creationDate: new Date(),
-    lastEditedDate: new Date(),
+    lastEditDate: new Date(),
     status: RequestStatus.PENDING,
   };
 

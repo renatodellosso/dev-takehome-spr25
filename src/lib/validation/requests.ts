@@ -24,7 +24,7 @@ export function isValidItemRequest(
   if (!isValidString(request.itemRequested)) return false;
 
   if (!isValidDate(request.creationDate)) return false;
-  if (!isValidDate(request.lastEditedDate)) return false;
+  if (!isValidDate(request.lastEditDate)) return false;
 
   if (!isValidRequestStatus(request.status)) return false;
 

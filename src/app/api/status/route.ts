@@ -1,4 +1,5 @@
 import { mongoClient } from "@/lib/mongo";
+import { HTTP_STATUS_CODE } from "@/lib/types/apiResponse";
 import { MongoServerError } from "mongodb";
 
 export async function GET() {
@@ -6,7 +7,7 @@ export async function GET() {
     await mongoClient.connect();
 
     return new Response(`Server is running! DB is connected.`, {
-      status: 200,
+      status: HTTP_STATUS_CODE.OK,
     });
   } catch (error) {
     if (error instanceof MongoServerError) {
@@ -16,7 +17,7 @@ export async function GET() {
     }
 
     return new Response(`Server is running! DB is not connected.`, {
-      status: 500,
+      status: HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR,
     });
   }
 }

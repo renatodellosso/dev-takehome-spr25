@@ -6,8 +6,8 @@
 - [x] Something cool!
 - [ ] Back-end
   - [ ] Minimum Requirements
-    - [ ] Setup MongoDB database
-    - [ ] Setup item requests collection
+    - [x] Setup MongoDB database
+    - [x] Setup item requests collection
     - [ ] `PUT /api/request`
     - [ ] `GET /api/request?page=_`
   - [ ] Main Requirements
@@ -32,3 +32,5 @@
 # Notes
 
 <!-- Notes go here -->
+
+- You can check DB connection with the `GET /api/status/` endpoint.

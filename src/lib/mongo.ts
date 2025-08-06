@@ -8,9 +8,11 @@ if (!process.env.DB_NAME) {
   throw new Error("Please define the DB_NAME environment variable");
 }
 
-const client = new MongoClient(process.env.MONGODB_URI);
-const db = client.db(process.env.DB_NAME);
+const mongoClient = new MongoClient(process.env.MONGODB_URI);
+const db = mongoClient.db(process.env.DB_NAME);
 
-export const collections = {
+const collections = {
   requests: db.collection("requests"),
 };
+
+export { mongoClient, db, collections };

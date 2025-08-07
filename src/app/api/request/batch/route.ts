@@ -19,6 +19,7 @@ import { ObjectId } from "mongodb";
  * {
  *  "message": "Requests updated successfully.",
  *  "invalidIds": ["invalid_id_1", "invalid_id_2"],
+ *  "successfulUpdateCount": 3
  *}
  * ```
  * IDs are considered invalid if they are not valid ObjectId strings or if they do not correspond to existing requests in the database.
@@ -86,6 +87,7 @@ export async function PATCH(request: Request) {
     JSON.stringify({
       message: "Requests updated successfully.",
       invalidIds,
+      successfulUpdateCount: updateResult.modifiedCount,
     }),
     {
       status: HTTP_STATUS_CODE.OK,
@@ -96,6 +98,8 @@ export async function PATCH(request: Request) {
 /**
  * Takes an array of IDs to delete. Returns 400 Bad Request if the input is not an array.
  *
+ * If the database delete fails, returns a 500 Internal Server Error.
+ *
  * Returns 200 OK if input is valid, even if no requests were deleted. Response structure:
  *
  * ```json
@@ -105,7 +109,6 @@ export async function PATCH(request: Request) {
  *  "successfulDeleteCount": 3
  * }
  * ```
- * If the database delete fails, returns a 500 Internal Server Error.
  */
 export async function DELETE(request: Request) {
   const requestData: string[] = await request.json();

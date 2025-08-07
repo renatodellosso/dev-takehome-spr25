@@ -188,6 +188,24 @@ describe(PATCH.name, () => {
     expect(itemRequests).toHaveLength(1);
     expect(itemRequests[0].status).toBe(RequestStatus.APPROVED);
   });
+
+  it("returns a correct successfulUpdateCount", async () => {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request/batch", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ids: [ids[0], ids[1], new ObjectId().toString()],
+        status: RequestStatus.APPROVED,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PATCH(request);
+
+    const responseData = await response.json();
+    expect(responseData.successfulUpdateCount).toBe(2);
+  });
 });
 
 describe(DELETE.name, () => {

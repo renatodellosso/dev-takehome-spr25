@@ -34,4 +34,5 @@
 <!-- Notes go here -->
 
 - You can check DB connection with the `GET /api/status/` endpoint.
-- Run tests with `npm run test`. Tests are in the `test` directory, which mirrors the `src` directory structure (`src/a/b.ts` is tested by `test/a/b.test.ts`).
+- Run tests with `npm run test`. Tests are in the `test` directory, which mirrors the `src` directory structure (`src/a/b.ts` is tested by `test/a/b.test.ts`). Describe blocks use `.name` so that functions can be renamed easily.
+- Dates are saved as strings to avoid problems with Mongo saving dates as strings. I'm not 100% sure how I feel about this choice.

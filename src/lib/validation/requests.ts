@@ -6,8 +6,8 @@ function isValidString(value: any): value is string {
   );
 }
 
-function isValidDate(value: any): value is Date {
-  return value instanceof Date && !isNaN(value.getTime());
+function isValidDate(value: any): value is string {
+  return typeof value === "string" && !isNaN(new Date(value).getTime());
 }
 
 function isValidRequestStatus(value: any): value is ItemRequest["status"] {

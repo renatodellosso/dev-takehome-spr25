@@ -1,11 +1,18 @@
-import { PUT } from "@/app/api/request/route";
+import { GET, PUT } from "@/app/api/request/route";
+import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
 import { RESPONSES } from "@/lib/types/apiResponse";
 import { ItemRequest, RequestStatus } from "@/lib/types/request";
 import { isValidItemRequest } from "@/lib/validation/requests";
+import { WithId } from "mongodb";
+
+// Done in here, not in jest.setup.ts, because clearing after non-DB-using tests caused issues
+beforeEach(async () => {
+  await collections.requests.deleteMany({});
+});
 
 describe(PUT.name, () => {
-  it("should return 201 Created for a valid request", async () => {
+  it("return 201 Created for a valid request", async () => {
     const request = new Request("http://localhost/api/request", {
       method: "PUT",
       body: JSON.stringify({
@@ -21,7 +28,7 @@ describe(PUT.name, () => {
     expect(responseData.message).toBe(RESPONSES.CREATED.message);
   });
 
-  it("creates a valid ItemRequest in the database", async () => {
+  it("creates a valid ItemRequest in the database with correct status", async () => {
     // I tried mocking @/lib/mongo.collections.requests.insertOne, but Jest wasn't picking up the call to it.
 
     const request = new Request("http://localhost/api/request", {
@@ -35,9 +42,9 @@ describe(PUT.name, () => {
 
     await PUT(request);
 
-    const itemRequest = (await collections.requests.findOne({
+    const itemRequest = await collections.requests.findOne({
       requestorName: "Jane Doe",
-    })) as ItemRequest | null;
+    });
 
     expect(itemRequest).toBeDefined();
     expect(isValidItemRequest(itemRequest!)).toBe(true);
@@ -48,7 +55,7 @@ describe(PUT.name, () => {
     expect(itemRequest!.lastEditDate).toBeDefined();
   });
 
-  it("should not add extra fields to the ItemRequest", async () => {
+  it("not add extra fields to the ItemRequest", async () => {
     const request = new Request("http://localhost/api/request", {
       method: "PUT",
       body: JSON.stringify({
@@ -71,7 +78,7 @@ describe(PUT.name, () => {
   });
 
   describe("invalid input", () => {
-    it("should return 400 Bad Request for invalid input", async () => {
+    it("return 400 Bad Request for invalid input", async () => {
       const request = new Request("http://localhost/api/request", {
         method: "PUT",
         body: JSON.stringify({
@@ -88,7 +95,7 @@ describe(PUT.name, () => {
       expect(responseData.message).toBe(RESPONSES.INVALID_INPUT.message);
     });
 
-    it("should not create an ItemRequest in the database for invalid input", async () => {
+    it("not create an ItemRequest in the database for invalid input", async () => {
       const request = new Request("http://localhost/api/request", {
         method: "PUT",
         body: JSON.stringify({
@@ -105,6 +112,155 @@ describe(PUT.name, () => {
       });
 
       expect(itemRequest).toBeNull();
+    });
+  });
+});
+
+describe(GET.name, () => {
+  function newItemRequest(index: number): ItemRequest {
+    const DAY_TO_MS = 24 * 60 * 60 * 1000;
+    const today = new Date();
+
+    const creationDate = new Date(today.getTime() - index * DAY_TO_MS);
+    const editDate = new Date(today.getTime() + index * DAY_TO_MS);
+
+    return {
+      requestorName: `User ${index}`,
+      itemRequested: `Item ${index}`,
+      creationDate: creationDate.toISOString(),
+      lastEditDate: editDate.toISOString(),
+      status: RequestStatus.PENDING,
+    };
+  }
+
+  /**
+   *  Edit dates are in reverse order of creation dates to test sorting
+   */
+  const SEED_REQUESTS: ItemRequest[] = Array.from(
+    { length: PAGINATION_PAGE_SIZE * 2 },
+    (_, i) => newItemRequest(i)
+  );
+
+  beforeEach(async () => {
+    // Seed the database with test data
+    await collections.requests.insertMany(SEED_REQUESTS);
+  });
+
+  it("return 200 OK for a valid request", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+  });
+
+  it("returns a list of requests", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await GET(request);
+
+    const requests = await response.json();
+    expect(Array.isArray(requests)).toBe(true);
+    expect(requests.length).toBeGreaterThan(0);
+
+    for (const req of requests) {
+      expect(isValidItemRequest(req)).toBe(true);
+    }
+  });
+
+  it("sorts requests by creationDate in descending order", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await GET(request);
+    const requests = (await response.json()) as WithId<ItemRequest>[];
+
+    // Check if the dates are in descending order
+    for (let i = 0; i < requests.length - 1; i++) {
+      const d1 = new Date(requests[i].creationDate);
+      const d2 = new Date(requests[i + 1].creationDate);
+
+      expect(d1.getTime()).toBeGreaterThanOrEqual(d2.getTime());
+    }
+  });
+
+  describe("pagination", () => {
+    it("defaults to page 1 if no page is specified", async () => {
+      const defaultPageRequest = new Request("http://localhost/api/request", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const firstPageRequest = new Request(
+        "http://localhost/api/request?page=1",
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      // Make and parse both requests simultaneously
+      const [defaultPageRequests, firstPageRequests] = await Promise.all([
+        GET(defaultPageRequest).then((res) => res.json()),
+        GET(firstPageRequest).then((res) => res.json()),
+      ]);
+
+      expect(defaultPageRequests).toEqual(firstPageRequests);
+    });
+
+    it("returns the correct number of requests per page", async () => {
+      const request = new Request("http://localhost/api/request?page=1", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const response = await GET(request);
+      const requests = await response.json();
+
+      expect(requests.length).toBe(PAGINATION_PAGE_SIZE);
+    });
+
+    it("returns the correct page of requests", async () => {
+      const firstPageRequest = new Request(
+        "http://localhost/api/request?page=1",
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const secondPageRequest = new Request(
+        "http://localhost/api/request?page=2",
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const [firstPageRequests, secondPageRequests] = await Promise.all([
+        GET(firstPageRequest).then(
+          (res) => res.json() as Promise<WithId<ItemRequest>[]>
+        ),
+        GET(secondPageRequest).then(
+          (res) => res.json() as Promise<WithId<ItemRequest>[]>
+        ),
+      ]);
+
+      // First page's requests should have greater creation dates than second page's requests
+      const firstDate = new Date(
+        firstPageRequests[firstPageRequests.length - 1].creationDate
+      );
+      const secondDate = new Date(secondPageRequests[0].creationDate);
+
+      expect(firstDate.getTime()).toBeGreaterThan(secondDate.getTime());
     });
   });
 });

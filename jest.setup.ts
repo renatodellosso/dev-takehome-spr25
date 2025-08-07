@@ -1,4 +1,4 @@
-import { mongoClient } from "@/lib/mongo";
+import { collections, mongoClient } from "@/lib/mongo";
 
 afterAll(async () => {
   // Close the MongoDB connection after all tests are done

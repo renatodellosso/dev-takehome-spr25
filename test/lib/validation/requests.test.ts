@@ -1,13 +1,14 @@
 import { ItemRequest, RequestStatus } from "@/lib/types/request";
 import { isValidItemRequest } from "@/lib/validation/requests";
+import { ObjectId } from "mongodb";
 
 describe(isValidItemRequest.name, () => {
   function getTestRequest(): ItemRequest {
     return {
       requestorName: "Test User",
       itemRequested: "Test Item",
-      creationDate: new Date(),
-      lastEditDate: new Date(),
+      creationDate: new Date().toISOString(),
+      lastEditDate: new Date().toISOString(),
       status: RequestStatus.PENDING,
     };
   }
@@ -16,6 +17,15 @@ describe(isValidItemRequest.name, () => {
     const request = getTestRequest();
 
     expect(isValidItemRequest(request)).toBe(true);
+  });
+
+  it("returns true for valid ItemRequest with _id field", () => {
+    const requestWithId = {
+      ...getTestRequest(),
+      _id: new ObjectId(),
+    } as ItemRequest & { _id: ObjectId };
+
+    expect(isValidItemRequest(requestWithId)).toBe(true);
   });
 
   it("returns false for undefined or null requests", () => {
@@ -47,8 +57,8 @@ describe(isValidItemRequest.name, () => {
   it("returns false for request with invalid dates", () => {
     const request: ItemRequest = {
       ...getTestRequest(),
-      creationDate: new Date("invalid-date"),
-      lastEditDate: new Date("invalid-date"),
+      creationDate: "invalid-date",
+      lastEditDate: "invalid-date",
     };
 
     expect(isValidItemRequest(request)).toBe(false);

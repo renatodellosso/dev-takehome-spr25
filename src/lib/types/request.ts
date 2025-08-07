@@ -11,7 +11,13 @@ export enum RequestStatus {
 export type ItemRequest = {
   requestorName: string;
   itemRequested: string;
-  creationDate: Date;
-  lastEditDate: Date;
+  /**
+   * Datestring saved as a string to avoid issues with Mongo saving Date objects as strings.
+   */
+  creationDate: string;
+  /**
+   * Datestring saved as a string to avoid issues with Mongo saving Date objects as strings.
+   */
+  lastEditDate: string;
   status: RequestStatus;
 };

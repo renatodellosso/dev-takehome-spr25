@@ -1,3 +1,4 @@
+// See docs here: https://www.npmjs.com/package/@shelf/jest-mongodb
 module.exports = {
   mongodbMemoryServerOptions: {
     binary: {
@@ -8,4 +9,5 @@ module.exports = {
     instance: {},
   },
   useSharedDBForAllJestWorkers: false,
+  mongoURLEnvName: "MONGODB_URI",
 };

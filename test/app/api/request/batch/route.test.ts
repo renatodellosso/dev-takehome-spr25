@@ -4,11 +4,6 @@ import { HTTP_STATUS_CODE, RESPONSES } from "@/lib/types/apiResponse";
 import { getSeedRequests, RequestStatus } from "@/lib/types/request";
 import { ObjectId } from "mongodb";
 
-// Done in here, not in jest.setup.ts, because clearing after non-DB-using tests caused issues
-beforeEach(async () => {
-  await collections.requests.deleteMany({});
-});
-
 beforeEach(async () => {
   // Seed the database with test data
   await collections.requests.insertMany(getSeedRequests());

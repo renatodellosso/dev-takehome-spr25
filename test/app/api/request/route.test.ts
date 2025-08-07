@@ -10,11 +10,6 @@ import {
 import { isValidItemRequest } from "@/lib/validation/requests";
 import { ObjectId, WithId } from "mongodb";
 
-// Done in here, not in jest.setup.ts, because clearing after non-DB-using tests caused issues
-beforeEach(async () => {
-  await collections.requests.deleteMany({});
-});
-
 describe(PUT.name, () => {
   it("returns 201 Created for a valid request", async () => {
     const request = new Request("http://localhost/api/request", {

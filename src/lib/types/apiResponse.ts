@@ -14,6 +14,7 @@ export enum ResponseType {
   INVALID_INPUT = "INVALID_INPUT",
   UNAUTHORIZED = "UNAUTHORIZED",
   FORBIDDEN = "FORBIDDEN",
+  NOT_FOUND = "NOT_FOUND",
   CREATED = "CREATED",
   SUCCESS = "SUCCESS",
 }
@@ -37,6 +38,10 @@ export const RESPONSES: Record<
   [ResponseType.FORBIDDEN]: {
     message: "Forbidden access.",
     code: HTTP_STATUS_CODE.FORBIDDEN,
+  },
+  [ResponseType.NOT_FOUND]: {
+    message: "Resource not found.",
+    code: HTTP_STATUS_CODE.NOT_FOUND,
   },
   [ResponseType.CREATED]: {
     message: "Resource created successfully.",

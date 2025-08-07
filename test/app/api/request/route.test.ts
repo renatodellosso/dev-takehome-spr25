@@ -1,10 +1,10 @@
-import { GET, PUT } from "@/app/api/request/route";
+import { GET, PATCH, PUT } from "@/app/api/request/route";
 import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
 import { RESPONSES } from "@/lib/types/apiResponse";
 import { ItemRequest, RequestStatus } from "@/lib/types/request";
 import { isValidItemRequest } from "@/lib/validation/requests";
-import { WithId } from "mongodb";
+import { ObjectId, WithId } from "mongodb";
 
 // Done in here, not in jest.setup.ts, because clearing after non-DB-using tests caused issues
 beforeEach(async () => {
@@ -316,6 +316,29 @@ describe(GET.name, () => {
       expect(responseData.message).toBe(RESPONSES.INVALID_INPUT.message);
     });
 
+    it("maintains descending creation date order with status filter", async () => {
+      for (const status of Object.values(RequestStatus)) {
+        const request = new Request(
+          `http://localhost/api/request?page=1&status=${status}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        const response = await GET(request);
+        const requests = (await response.json()) as WithId<ItemRequest>[];
+
+        // Check if the dates are in descending order
+        for (let i = 0; i < requests.length - 1; i++) {
+          const d1 = new Date(requests[i].creationDate);
+          const d2 = new Date(requests[i + 1].creationDate);
+
+          expect(d1.getTime()).toBeGreaterThanOrEqual(d2.getTime());
+        }
+      }
+    });
+
     it("works with pagination", async () => {
       for (const status of Object.values(RequestStatus)) {
         const firstPageRequest = new Request(
@@ -352,5 +375,146 @@ describe(GET.name, () => {
         expect(firstDate.getTime()).toBeGreaterThan(secondDate.getTime());
       }
     });
+  });
+});
+
+describe(PATCH.name, () => {
+  let requestId: string;
+
+  beforeEach(async () => {
+    // Seed the database with a request to update
+    const itemRequest: ItemRequest = {
+      requestorName: "Update Test",
+      itemRequested: "Update Item",
+      creationDate: new Date(0).toISOString(), // Set date to 1970-01-01
+      lastEditDate: new Date(0).toISOString(),
+      status: RequestStatus.PENDING,
+    };
+
+    const result = await collections.requests.insertOne(itemRequest);
+    requestId = result.insertedId.toString();
+  });
+
+  it("returns 200 OK for a valid request", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: requestId,
+        status: RequestStatus.APPROVED,
+      }),
+    });
+
+    const response = await PATCH(request);
+    expect(response.status).toBe(200);
+    const responseData = await response.json();
+    expect(responseData.message).toBe(RESPONSES.SUCCESS.message);
+  });
+
+  it("updates the request status in the database", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: requestId,
+        status: RequestStatus.APPROVED,
+      }),
+    });
+
+    await PATCH(request);
+
+    const updatedRequest = await collections.requests.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    expect(updatedRequest).toBeDefined();
+    expect(updatedRequest!.status).toBe(RequestStatus.APPROVED);
+  });
+
+  it("updates the lastEditDate to the current date", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: requestId,
+        status: RequestStatus.APPROVED,
+      }),
+    });
+
+    await PATCH(request);
+
+    const updatedRequest = await collections.requests.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    expect(updatedRequest).toBeDefined();
+    // Convert between ISO string and date string for comparison
+    expect(new Date(updatedRequest!.lastEditDate).toDateString()).toBe(
+      new Date().toDateString()
+    );
+  });
+
+  it("returns 400 Bad Request for invalid ID", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: "invalid_id", // Invalid ID
+        status: RequestStatus.APPROVED,
+      }),
+    });
+
+    const response = await PATCH(request);
+    expect(response.status).toBe(400);
+    const responseData = await response.json();
+    expect(responseData.message).toBe(RESPONSES.INVALID_INPUT.message);
+  });
+
+  it("returns 400 Bad Request for invalid status", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: requestId,
+        status: "invalid_status", // Invalid status
+      }),
+    });
+
+    const response = await PATCH(request);
+    expect(response.status).toBe(400);
+    const responseData = await response.json();
+    expect(responseData.message).toBe(RESPONSES.INVALID_INPUT.message);
+  });
+
+  it("returns 404 Not Found for non-existent request ID", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: new ObjectId().toString(), // Non-existent ID
+        status: RequestStatus.APPROVED,
+      }),
+    });
+
+    const response = await PATCH(request);
+    expect(response.status).toBe(404);
+    const responseData = await response.json();
+    expect(responseData.message).toBe(RESPONSES.NOT_FOUND.message);
+  });
+
+  it("does not modify fields if status is invalid", async () => {
+    const originalRequest = await collections.requests.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: requestId,
+        status: "invalid_status", // Invalid status
+      }),
+    });
+
+    await PATCH(request);
+
+    const updatedRequest = await collections.requests.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    expect(updatedRequest).toEqual(originalRequest);
   });
 });

@@ -83,7 +83,7 @@ describe(PUT.name, () => {
     expect(itemRequest!.lastEditDate).toBeDefined();
   });
 
-  it("not add extra fields to the ItemRequest", async () => {
+  it("does not add extra fields to the ItemRequest", async () => {
     const request = new Request("http://localhost/api/request", {
       method: "PUT",
       body: JSON.stringify({
@@ -105,8 +105,35 @@ describe(PUT.name, () => {
     expect(itemRequest!.extraField).toBeUndefined();
   });
 
+  it("returns 500 Internal Server Error if the database insertion fails", async () => {
+    // Mock the insertOne method to simulate a database failure
+    // Be sure to restore the original method after the test!
+    const originalInsertOne = collections.requests.insertOne;
+    collections.requests.insertOne = jest
+      .fn()
+      .mockResolvedValue({ acknowledged: false, insertedId: null });
+
+    const request = new Request("http://localhost/api/request", {
+      method: "PUT",
+      body: JSON.stringify({
+        requestorName: "DB Failure Test",
+        itemRequested: "Test Item",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PUT(request);
+    const responseData = await response.json();
+
+    expect(response.status).toBe(RESPONSES.UNKNOWN_ERROR.code);
+    expect(responseData.message).toBe(RESPONSES.UNKNOWN_ERROR.message);
+
+    // Restore the original method
+    collections.requests.insertOne = originalInsertOne;
+  });
+
   describe("invalid input", () => {
-    it("return 400 Bad Request for invalid input", async () => {
+    it("returns 400 Bad Request for invalid input", async () => {
       const request = new Request("http://localhost/api/request", {
         method: "PUT",
         body: JSON.stringify({
@@ -123,7 +150,7 @@ describe(PUT.name, () => {
       expect(responseData.message).toBe(RESPONSES.INVALID_INPUT.message);
     });
 
-    it("not create an ItemRequest in the database for invalid input", async () => {
+    it("does not create an ItemRequest in the database for invalid input", async () => {
       const request = new Request("http://localhost/api/request", {
         method: "PUT",
         body: JSON.stringify({
@@ -496,6 +523,36 @@ describe(PATCH.name, () => {
     expect(response.status).toBe(404);
     const responseData = await response.json();
     expect(responseData.message).toBe(RESPONSES.NOT_FOUND.message);
+  });
+
+  it("returns 500 Internal Server Error if the database update fails", async () => {
+    // Mock the updateOne method to simulate a database failure
+    // Be sure to restore the original method after the test!
+    const originalUpdateOne = collections.requests.updateOne;
+    collections.requests.updateOne = jest
+      .fn()
+      .mockResolvedValue({
+        acknowledged: false,
+        modifiedCount: 0,
+        upsertedId: null,
+      });
+
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify({
+        id: requestId,
+        status: RequestStatus.APPROVED,
+      }),
+    });
+
+    const response = await PATCH(request);
+
+    expect(response.status).toBe(RESPONSES.UNKNOWN_ERROR.code);
+    const responseData = await response.json();
+    expect(responseData.message).toBe(RESPONSES.UNKNOWN_ERROR.message);
+
+    // Restore the original method
+    collections.requests.updateOne = originalUpdateOne;
   });
 
   it("does not modify fields if status is invalid", async () => {

@@ -1,6 +1,10 @@
 import { ServerResponseBuilder } from "@/lib/builders/serverResponseBuilder";
 import { collections } from "@/lib/mongo";
-import { HTTP_STATUS_CODE, ResponseType } from "@/lib/types/apiResponse";
+import {
+  HTTP_STATUS_CODE,
+  RESPONSES,
+  ResponseType,
+} from "@/lib/types/apiResponse";
 import { ItemRequestUpdate, RequestStatus } from "@/lib/types/request";
 import { isValidRequestStatus } from "@/lib/validation/requests";
 import { ObjectId } from "mongodb";
@@ -23,6 +27,10 @@ import { ObjectId } from "mongodb";
  *    {
  *      "id": "another_invalid_id",
  *      "invalidFields": ["id", "status"]
+ *    },
+ *    {
+ *      "status": "approved",
+ *      "message": "An unknown error occurred while updating requests with this status."
  *    }
  *  ],
  *  "successfulUpdateCount": 5
@@ -43,10 +51,16 @@ export async function PATCH(request: Request) {
     return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
   }
 
-  const errors: {
-    id: string;
-    invalidFields: (keyof ItemRequestUpdate)[];
-  }[] = [];
+  const errors: (
+    | {
+        id: string;
+        invalidFields: (keyof ItemRequestUpdate)[];
+      }
+    | {
+        status: RequestStatus;
+        message: string;
+      }
+  )[] = [];
 
   let validUpdateRequests = requestData.filter((item) => {
     const error: (typeof errors)[0] = {
@@ -109,11 +123,22 @@ export async function PATCH(request: Request) {
     });
   });
 
-  function updateMany(ids: string[], status: RequestStatus) {
-    return collections.requests.updateMany(
+  async function updateMany(ids: string[], status: RequestStatus) {
+    const result = await collections.requests.updateMany(
       { _id: { $in: ids.map((id) => new ObjectId(id)) } },
       { $set: { status, lastEditDate: new Date().toISOString() } }
     );
+
+    if (!result.acknowledged) {
+      errors.push({
+        status,
+        message:
+          "An unknown error occurred while updating requests with this status.",
+      });
+      return null;
+    }
+
+    return result;
   }
 
   const updatePromises = Object.entries(updatesByStatus).map(
@@ -159,6 +184,7 @@ export async function PATCH(request: Request) {
  *  "successfulDeleteCount": 3
  * }
  * ```
+ * If the database delete fails, returns a 500 Internal Server Error.
  */
 export async function DELETE(request: Request) {
   const requestData: string[] = await request.json();
@@ -181,6 +207,10 @@ export async function DELETE(request: Request) {
   const deleteResult = await collections.requests.deleteMany({
     _id: { $in: validIds.map((id) => new ObjectId(id)) },
   });
+
+  if (!deleteResult.acknowledged) {
+    return new ServerResponseBuilder(ResponseType.UNKNOWN_ERROR).build();
+  }
 
   return new Response(
     JSON.stringify({

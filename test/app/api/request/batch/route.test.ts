@@ -196,6 +196,39 @@ describe(PATCH.name, () => {
     expect(updatedRequest?.status).toBe(originalRequest?.status);
     expect(updatedRequest?.lastEditDate).toBe(originalRequest?.lastEditDate);
   });
+
+  it("adds errors if a database update fails", async () => {
+    // Mock the updateMany method to simulate a database failure
+    const originalUpdateMany = collections.requests.updateMany;
+    collections.requests.updateMany = jest.fn().mockResolvedValue({
+      acknowledged: false,
+      modifiedCount: 0,
+    } as any);
+
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request", {
+      method: "PATCH",
+      body: JSON.stringify([
+        { id: ids[0], status: RequestStatus.APPROVED },
+        { id: ids[1], status: RequestStatus.APPROVED },
+      ]),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PATCH(request);
+
+    const responseData = await response.json();
+    expect(responseData.successfulUpdateCount).toBe(0);
+    expect(responseData.errors).toHaveLength(1);
+    expect(responseData.errors[0].message).toBe(
+      "An unknown error occurred while updating requests with this status."
+    );
+    expect(responseData.errors[0].status).toBe(RequestStatus.APPROVED);
+
+    // Restore the original method
+    collections.requests.updateMany = originalUpdateMany;
+  });
 });
 
 describe(DELETE.name, () => {
@@ -229,6 +262,32 @@ describe(DELETE.name, () => {
     expect(responseData.message).toEqual(RESPONSES.INVALID_INPUT.message);
   });
 
+  it("returns 500 Internal Server Error if the database delete fails", async () => {
+    // Mock the deleteMany method to simulate a database failure
+    const originalDeleteMany = collections.requests.deleteMany;
+    collections.requests.deleteMany = jest.fn().mockResolvedValue({
+      acknowledged: false,
+      deletedCount: 0,
+    } as any);
+
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request", {
+      method: "DELETE",
+      body: JSON.stringify([ids[0]]),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await DELETE(request);
+
+    expect(response.status).toBe(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+    const responseData = await response.json();
+    expect(responseData.message).toEqual(RESPONSES.UNKNOWN_ERROR.message);
+
+    // Restore the original method
+    collections.requests.deleteMany = originalDeleteMany;
+  });
+
   it("deletes multiple requests with valid IDs", async () => {
     const ids = await getRequestIds();
 
@@ -238,7 +297,7 @@ describe(DELETE.name, () => {
       headers: { "Content-Type": "application/json" },
     });
 
-    const response = await DELETE(request);
+    await DELETE(request);
 
     const requests = await collections.requests
       .find({ _id: { $in: [new ObjectId(ids[0]), new ObjectId(ids[1])] } })

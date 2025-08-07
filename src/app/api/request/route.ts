@@ -37,6 +37,7 @@ import { Filter, ObjectId } from "mongodb";
  *     "lastEditDate": "2023-10-01T12:00:00Z"
  *   }
  * }
+ * If the database insert fails, returns a 500 Internal Server Error.
  */
 export async function PUT(request: Request) {
   const requestData: Pick<ItemRequest, "requestorName" | "itemRequested"> =
@@ -56,6 +57,10 @@ export async function PUT(request: Request) {
   }
 
   const insertResult = await collections.requests.insertOne(itemRequest);
+
+  if (!insertResult.acknowledged) {
+    return new ServerResponseBuilder(ResponseType.UNKNOWN_ERROR).build();
+  }
 
   return new Response(
     JSON.stringify({
@@ -121,6 +126,8 @@ export async function GET(request: Request) {
  * }
  * ```
  * and updates the status of the request with the given id. Updates the last edited date of the request.
+ *
+ * If the database update fails, returns a 500 Internal Server Error.
  */
 export async function PATCH(request: Request) {
   const requestData: ItemRequestUpdate = await request.json();
@@ -142,6 +149,10 @@ export async function PATCH(request: Request) {
       },
     }
   );
+
+  if (!updateResult.acknowledged) {
+    return new ServerResponseBuilder(ResponseType.UNKNOWN_ERROR).build();
+  }
 
   if (updateResult.modifiedCount === 0) {
     return new ServerResponseBuilder(ResponseType.NOT_FOUND).build();

@@ -16,7 +16,7 @@ beforeEach(async () => {
 });
 
 describe(PUT.name, () => {
-  it("return 201 Created for a valid request", async () => {
+  it("returns 201 Created for a valid request", async () => {
     const request = new Request("http://localhost/api/request", {
       method: "PUT",
       body: JSON.stringify({
@@ -30,6 +30,35 @@ describe(PUT.name, () => {
     const responseData = await response.json();
     expect(response.status).toBe(RESPONSES.CREATED.code);
     expect(responseData.message).toBe(RESPONSES.CREATED.message);
+  });
+
+  it("returns the created item request", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "PUT",
+      body: JSON.stringify({
+        requestorName: "John Doe",
+        itemRequested: "Book Title",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PUT(request);
+
+    const responseData = await response.json();
+
+    expect(responseData.request).toBeDefined();
+    expect(isValidItemRequest(responseData.request)).toBe(true);
+
+    expect(responseData.request.requestorName).toBe("John Doe");
+    expect(responseData.request.itemRequested).toBe("Book Title");
+
+    expect(responseData.request.id).toBeDefined();
+    expect(ObjectId.isValid(responseData.request.id)).toBe(true);
+
+    const itemRequest = await collections.requests.findOne({
+      _id: new ObjectId(responseData.request.id),
+    });
+    expect(itemRequest).toBeDefined();
   });
 
   it("creates a valid ItemRequest in the database with correct status", async () => {

@@ -1,7 +1,7 @@
 import { ServerResponseBuilder } from "@/lib/builders/serverResponseBuilder";
 import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
-import { ResponseType } from "@/lib/types/apiResponse";
+import { RESPONSES, ResponseType } from "@/lib/types/apiResponse";
 import {
   ItemRequest,
   ItemRequestUpdate,
@@ -23,6 +23,20 @@ import { Filter, ObjectId } from "mongodb";
  * ```
  * Adds a new item request to the database. The creation date and last edited date are set to the current date
  * and the status is set to pending.
+ *
+ * Returns a JSON object, like so:
+ * ```json
+ * {
+ *   "message": "Request created successfully.",
+ *   "request": {
+ *     "id": "unique_request_id",
+ *     "requestorName": "Jane Doe",
+ *     "itemName": "Sample Item",
+ *     "status": "pending",
+ *     "creationDate": "2023-10-01T12:00:00Z",
+ *     "lastEditDate": "2023-10-01T12:00:00Z"
+ *   }
+ * }
  */
 export async function PUT(request: Request) {
   const requestData: Pick<ItemRequest, "requestorName" | "itemRequested"> =
@@ -41,9 +55,20 @@ export async function PUT(request: Request) {
     return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
   }
 
-  await collections.requests.insertOne(itemRequest);
+  const insertResult = await collections.requests.insertOne(itemRequest);
 
-  return new ServerResponseBuilder(ResponseType.CREATED).build();
+  return new Response(
+    JSON.stringify({
+      message: RESPONSES.CREATED.message,
+      request: {
+        id: insertResult.insertedId.toString(),
+        ...itemRequest,
+      },
+    }),
+    {
+      status: RESPONSES.CREATED.code,
+    }
+  );
 }
 /**
  * Returns all the item requests in the database in descending order of date created.

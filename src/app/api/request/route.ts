@@ -60,3 +60,7 @@ export async function GET(request: Request) {
     status: 200,
   });
 }
+
+export async function PATCH(request: Request) {
+  
+}

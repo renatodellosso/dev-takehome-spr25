@@ -2,7 +2,7 @@ import { ServerResponseBuilder } from "@/lib/builders/serverResponseBuilder";
 import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
 import { ResponseType } from "@/lib/types/apiResponse";
-import { ItemRequest, RequestStatus } from "@/lib/types/request";
+import { ItemRequest, ItemRequestUpdate, RequestStatus } from "@/lib/types/request";
 import {
   isValidItemRequest,
   isValidRequestStatus,
@@ -63,8 +63,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const requestData: Pick<ItemRequest, "status"> & { id: string } =
-    await request.json();
+  const requestData: ItemRequestUpdate = await request.json();
 
   if (!requestData.id || !ObjectId.isValid(requestData.id)) {
     return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();

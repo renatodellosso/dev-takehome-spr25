@@ -130,7 +130,7 @@ export async function PATCH(request: Request) {
 
   const updateResults = await Promise.all(updatePromises);
 
-  let successfulUpdateCount = updateResults.reduce(
+  const successfulUpdateCount = updateResults.reduce(
     (acc, result) => acc + (result?.modifiedCount || 0),
     0
   );

@@ -1,20 +1,22 @@
 import { ItemRequest, RequestStatus } from "../types/request";
 
-function isValidString(value: any): value is string {
+function isValidString(value: unknown): value is string {
   return (
     typeof value === "string" && value.trim() !== "" && value.length <= 100
   );
 }
 
-function isValidDate(value: any): value is string {
+function isValidDate(value: unknown): value is string {
   return typeof value === "string" && !isNaN(new Date(value).getTime());
 }
 
 export function isValidRequestStatus(
-  value: any
+  value: unknown
 ): value is ItemRequest["status"] {
+  if (typeof value !== "string") return false;
+
   const validStatuses = Object.values(RequestStatus);
-  return validStatuses.includes(value);
+  return validStatuses.includes(value as RequestStatus);
 }
 
 export function isValidItemRequest(

@@ -5,6 +5,37 @@ import { ItemRequestUpdate, RequestStatus } from "@/lib/types/request";
 import { isValidRequestStatus } from "@/lib/validation/requests";
 import { ObjectId } from "mongodb";
 
+/**
+ * Takes an array of updates, where each update has an `id` and a `status` field.
+ *
+ * Returns 400 Bad Request if the input is not an array. Individual updates can be invalid
+ *
+ * Returns 200 OK if input is valid, even if no updates were made. Response structure:
+ *
+ * ```json
+ * {
+ *  "message": "Requests updated successfully.",
+ *  "errors": [
+ *    {
+ *      "id": "invalid_id",
+ *      "invalidFields": ["status"]
+ *    },
+ *    {
+ *      "id": "another_invalid_id",
+ *      "invalidFields": ["id", "status"]
+ *    }
+ *  ],
+ *  "successfulUpdateCount": 5
+ *}
+ * ```
+ *
+ * Updates are sorted by status to take advantage of MongoDB's `updateMany` operation.
+ * Will update `lastEditDate` to the current date for each updated request.
+ *
+ * This route performs a find operation to check if the IDs exist before attempting to update them,
+ * so it can report non-existent IDs. I consider this a worthwhile trade-off, though it does make
+ * the operation slower than a single update query.
+ */
 export async function PATCH(request: Request) {
   const requestData: ItemRequestUpdate[] = await request.json();
 
@@ -116,6 +147,19 @@ export async function PATCH(request: Request) {
   );
 }
 
+/**
+ * Takes an array of IDs to delete. Returns 400 Bad Request if the input is not an array.
+ *
+ * Returns 200 OK if input is valid, even if no requests were deleted. Response structure:
+ *
+ * ```json
+ * {
+ *  "message": "Requests deleted successfully.",
+ *  "invalidIds": ["invalid_id_1", "invalid_id_2"],
+ *  "successfulDeleteCount": 3
+ * }
+ * ```
+ */
 export async function DELETE(request: Request) {
   const requestData: string[] = await request.json();
 

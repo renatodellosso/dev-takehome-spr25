@@ -2,13 +2,28 @@ import { ServerResponseBuilder } from "@/lib/builders/serverResponseBuilder";
 import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
 import { ResponseType } from "@/lib/types/apiResponse";
-import { ItemRequest, ItemRequestUpdate, RequestStatus } from "@/lib/types/request";
+import {
+  ItemRequest,
+  ItemRequestUpdate,
+  RequestStatus,
+} from "@/lib/types/request";
 import {
   isValidItemRequest,
   isValidRequestStatus,
 } from "@/lib/validation/requests";
 import { Filter, ObjectId } from "mongodb";
 
+/**
+ * Takes a body in the following format:
+ * ```json
+ * {
+ *   "requestorName": "Jane Doe",
+ *   "itemRequested": "Flashlights"
+ * }
+ * ```
+ * Adds a new item request to the database. The creation date and last edited date are set to the current date
+ * and the status is set to pending.
+ */
 export async function PUT(request: Request) {
   const requestData: Pick<ItemRequest, "requestorName" | "itemRequested"> =
     await request.json();
@@ -30,7 +45,17 @@ export async function PUT(request: Request) {
 
   return new ServerResponseBuilder(ResponseType.CREATED).build();
 }
-
+/**
+ * Returns all the item requests in the database in descending order of date created.
+ *
+ * The data is paginated, using the `page` query parameter to determine which page to return
+ * (defaults to page 1 if no page is provided).
+ *
+ * Specify a `status` query parameter to filter requests by status.
+ *
+ * @see RequestStatus status - The status to filter requests by. If not provided, all requests are returned.
+ * @see PAGINATION_PAGE_SIZE - The number of requests to return per page.
+ */
 export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const pageRaw = searchParams.get("page") || "1";
@@ -62,6 +87,16 @@ export async function GET(request: Request) {
   });
 }
 
+/**
+ * Takes in a body of the following format:
+ * ```json
+ * {
+ *   "id": "________",
+ *   "status": "approved"
+ * }
+ * ```
+ * and updates the status of the request with the given id. Updates the last edited date of the request.
+ */
 export async function PATCH(request: Request) {
   const requestData: ItemRequestUpdate = await request.json();
 

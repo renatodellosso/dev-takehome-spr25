@@ -1,6 +1,36 @@
 import { ItemRequest, RequestStatus } from "@/lib/types/request";
-import { isValidItemRequest } from "@/lib/validation/requests";
+import {
+  isValidItemRequest,
+  isValidRequestStatus,
+} from "@/lib/validation/requests";
 import { ObjectId } from "mongodb";
+
+describe(isValidRequestStatus.name, () => {
+  it("returns true for valid request statuses", () => {
+    const validStatuses = Object.values(RequestStatus);
+    validStatuses.forEach((status) => {
+      expect(isValidRequestStatus(status)).toBe(true);
+    });
+  });
+
+  it("returns false for invalid request statuses", () => {
+    const invalidStatuses = ["invalid", 123, null, undefined, {}];
+    invalidStatuses.forEach((status) => {
+      expect(isValidRequestStatus(status)).toBe(false);
+    });
+  });
+
+  it("returns false for empty string", () => {
+    expect(isValidRequestStatus("")).toBe(false);
+  });
+
+  it("returns false for non-string values", () => {
+    expect(isValidRequestStatus(123)).toBe(false);
+    expect(isValidRequestStatus(null)).toBe(false);
+    expect(isValidRequestStatus(undefined)).toBe(false);
+    expect(isValidRequestStatus({})).toBe(false);
+  });
+});
 
 describe(isValidItemRequest.name, () => {
   function getTestRequest(): ItemRequest {

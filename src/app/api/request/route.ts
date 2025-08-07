@@ -3,8 +3,11 @@ import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
 import { ResponseType } from "@/lib/types/apiResponse";
 import { ItemRequest, RequestStatus } from "@/lib/types/request";
-import { isValidItemRequest } from "@/lib/validation/requests";
-import { stat } from "fs";
+import {
+  isValidItemRequest,
+  isValidRequestStatus,
+} from "@/lib/validation/requests";
+import { Filter } from "mongodb";
 
 export async function PUT(request: Request) {
   const requestData: Pick<ItemRequest, "requestorName" | "itemRequested"> =
@@ -30,15 +33,23 @@ export async function PUT(request: Request) {
 
 export async function GET(request: Request) {
   const pageRaw = new URL(request.url).searchParams.get("page") || "1";
+  const statusRaw = new URL(request.url).searchParams.get("status");
 
   if (isNaN(Number(pageRaw)) || Number(pageRaw) < 1) {
     return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
   }
 
+  if (statusRaw && !isValidRequestStatus(statusRaw)) {
+    return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
+  }
+
   const page = Number(pageRaw);
+  const filter: Filter<ItemRequest> = statusRaw
+    ? { status: statusRaw as RequestStatus }
+    : {};
 
   const requests = await collections.requests
-    .find({
+    .find(filter, {
       sort: { creationDate: -1 }, // Descending order
       skip: (page - 1) * PAGINATION_PAGE_SIZE,
       limit: PAGINATION_PAGE_SIZE,

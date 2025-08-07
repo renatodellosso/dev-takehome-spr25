@@ -10,7 +10,9 @@ function isValidDate(value: any): value is string {
   return typeof value === "string" && !isNaN(new Date(value).getTime());
 }
 
-function isValidRequestStatus(value: any): value is ItemRequest["status"] {
+export function isValidRequestStatus(
+  value: any
+): value is ItemRequest["status"] {
   const validStatuses = Object.values(RequestStatus);
   return validStatuses.includes(value);
 }

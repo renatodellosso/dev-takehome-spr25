@@ -124,12 +124,14 @@ describe(GET.name, () => {
     const creationDate = new Date(today.getTime() - index * DAY_TO_MS);
     const editDate = new Date(today.getTime() + index * DAY_TO_MS);
 
+    const possibleStatuses = Object.values(RequestStatus);
+
     return {
       requestorName: `User ${index}`,
       itemRequested: `Item ${index}`,
       creationDate: creationDate.toISOString(),
       lastEditDate: editDate.toISOString(),
-      status: RequestStatus.PENDING,
+      status: possibleStatuses[index % possibleStatuses.length],
     };
   }
 
@@ -137,7 +139,7 @@ describe(GET.name, () => {
    *  Edit dates are in reverse order of creation dates to test sorting
    */
   const SEED_REQUESTS: ItemRequest[] = Array.from(
-    { length: PAGINATION_PAGE_SIZE * 2 },
+    { length: PAGINATION_PAGE_SIZE * Object.values(RequestStatus).length * 2 }, // 2 pages of each status
     (_, i) => newItemRequest(i)
   );
 
@@ -261,6 +263,94 @@ describe(GET.name, () => {
       const secondDate = new Date(secondPageRequests[0].creationDate);
 
       expect(firstDate.getTime()).toBeGreaterThan(secondDate.getTime());
+    });
+  });
+
+  describe("status filter", () => {
+    it("defaults to no filter if status is not specified", async () => {
+      const request = new Request("http://localhost/api/request?page=1", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const response = await GET(request);
+      const requests = await response.json();
+
+      const statuses = new Set<RequestStatus>(
+        requests.map((req: ItemRequest) => req.status)
+      );
+      expect(statuses.size).toBeGreaterThan(1);
+    });
+
+    it("filters requests by status", async () => {
+      for (const status of Object.values(RequestStatus)) {
+        const request = new Request(
+          `http://localhost/api/request?page=1&status=${status}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        const response = await GET(request);
+        const requests = await response.json();
+
+        for (const req of requests) {
+          expect(req.status).toBe(status);
+        }
+      }
+    });
+
+    it("returns 400 Bad Request for invalid status", async () => {
+      const request = new Request(
+        "http://localhost/api/request?page=1&status=invalid_status",
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const response = await GET(request);
+      expect(response.status).toBe(400);
+      const responseData = await response.json();
+      expect(responseData.message).toBe(RESPONSES.INVALID_INPUT.message);
+    });
+
+    it("works with pagination", async () => {
+      for (const status of Object.values(RequestStatus)) {
+        const firstPageRequest = new Request(
+          `http://localhost/api/request?page=1&status=${status}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        const secondPageRequest = new Request(
+          `http://localhost/api/request?page=2&status=${status}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        const [firstPageRequests, secondPageRequests] = await Promise.all([
+          GET(firstPageRequest).then(
+            (res) => res.json() as Promise<WithId<ItemRequest>[]>
+          ),
+          GET(secondPageRequest).then(
+            (res) => res.json() as Promise<WithId<ItemRequest>[]>
+          ),
+        ]);
+
+        // First page's requests should have greater creation dates than second page's requests
+        const firstDate = new Date(
+          firstPageRequests[firstPageRequests.length - 1].creationDate
+        );
+        const secondDate = new Date(secondPageRequests[0].creationDate);
+
+        expect(firstDate.getTime()).toBeGreaterThan(secondDate.getTime());
+      }
     });
   });
 });

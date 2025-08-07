@@ -1,8 +1,14 @@
 import { ItemRequest, RequestStatus } from "../types/request";
 
-function isValidString(value: unknown): value is string {
+function isValidString(
+  value: unknown,
+  minLength: number,
+  maxLength: number
+): value is string {
   return (
-    typeof value === "string" && value.trim() !== "" && value.length <= 100
+    typeof value === "string" &&
+    value.length >= minLength &&
+    value.length <= maxLength
   );
 }
 
@@ -24,8 +30,8 @@ export function isValidItemRequest(
 ): request is ItemRequest {
   if (!request) return false;
 
-  if (!isValidString(request.requestorName)) return false;
-  if (!isValidString(request.itemRequested)) return false;
+  if (!isValidString(request.requestorName, 3, 30)) return false;
+  if (!isValidString(request.itemRequested, 2, 100)) return false;
 
   if (!isValidDate(request.creationDate)) return false;
   if (!isValidDate(request.lastEditDate)) return false;

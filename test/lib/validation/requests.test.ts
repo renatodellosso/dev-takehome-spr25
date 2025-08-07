@@ -74,11 +74,20 @@ describe(isValidItemRequest.name, () => {
   });
 
   it("returns false for request with long name or item", () => {
-    const longString = "a".repeat(101); // 101 characters long
     const request: ItemRequest = {
       ...getTestRequest(),
-      requestorName: longString,
-      itemRequested: longString,
+      requestorName: "a".repeat(31),
+      itemRequested: "a".repeat(101),
+    };
+
+    expect(isValidItemRequest(request)).toBe(false);
+  });
+
+  it("returns false for request with short name or item", () => {
+    const request: ItemRequest = {
+      ...getTestRequest(),
+      requestorName: "12", // Too short
+      itemRequested: "1", // Too short
     };
 
     expect(isValidItemRequest(request)).toBe(false);

@@ -16,29 +16,11 @@ async function getRequestIds() {
 
 describe(PATCH.name, () => {
   it("returns 200 OK for valid request data", async () => {
-    const request = new Request("http://localhost/api/request", {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request/batch", {
       method: "PATCH",
-      body: JSON.stringify([
-        {
-          id: "some-valid-id",
-          status: "approved",
-        },
-      ]),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    const response = await PATCH(request);
-
-    expect(response.status).toBe(HTTP_STATUS_CODE.OK);
-    const responseData = await response.json();
-
-    expect(responseData.message).toEqual("Requests updated successfully.");
-  });
-
-  it("returns 200 OK for request data that is an empty array", async () => {
-    const request = new Request("http://localhost/api/request", {
-      method: "PATCH",
-      body: JSON.stringify([]),
+      body: JSON.stringify({ ids, status: RequestStatus.APPROVED }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -49,10 +31,13 @@ describe(PATCH.name, () => {
     expect(responseData.message).toEqual("Requests updated successfully.");
   });
 
-  it("returns 400 Bad Request for non-array request data", async () => {
-    const request = new Request("http://localhost/api/request", {
+  it("returns 400 Bad Request for non-array 'ids' field", async () => {
+    const request = new Request("http://localhost/api/request/batch", {
       method: "PATCH",
-      body: JSON.stringify({ id: "invalid-id", status: "unknown" }),
+      body: JSON.stringify({
+        ids: "invalid-id",
+        status: RequestStatus.APPROVED,
+      }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -63,141 +48,23 @@ describe(PATCH.name, () => {
     expect(responseData.message).toEqual(RESPONSES.INVALID_INPUT.message);
   });
 
-  it("updates multiple requests with valid IDs and statuses", async () => {
+  it("returns 400 Bad Request for invalid 'status' field", async () => {
     const ids = await getRequestIds();
 
-    const request = new Request("http://localhost/api/request", {
+    const request = new Request("http://localhost/api/request/batch", {
       method: "PATCH",
-      body: JSON.stringify([
-        { id: ids[0], status: RequestStatus.APPROVED },
-        { id: ids[1], status: RequestStatus.COMPLETED },
-      ]),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    await PATCH(request);
-
-    const [updatedRequest1, updatedRequest2] = await Promise.all([
-      collections.requests.findOne({ _id: new ObjectId(ids[0]) }),
-      collections.requests.findOne({ _id: new ObjectId(ids[1]) }),
-    ]);
-
-    expect(updatedRequest1?.status).toBe(RequestStatus.APPROVED);
-    expect(updatedRequest2?.status).toBe(RequestStatus.COMPLETED);
-  });
-
-  it("sets lastEditDate to current date on updates", async () => {
-    const ids = await getRequestIds();
-
-    const request = new Request("http://localhost/api/request", {
-      method: "PATCH",
-      body: JSON.stringify([
-        { id: ids[0], status: RequestStatus.APPROVED },
-        { id: ids[1], status: RequestStatus.COMPLETED },
-      ]),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    await PATCH(request);
-
-    const [updatedRequest1, updatedRequest2] = await Promise.all([
-      collections.requests.findOne({ _id: new ObjectId(ids[0]) }),
-      collections.requests.findOne({ _id: new ObjectId(ids[1]) }),
-    ]);
-
-    const currentDate = new Date().toDateString();
-
-    expect(updatedRequest1?.lastEditDate).toBeDefined();
-    expect(new Date(updatedRequest1!.lastEditDate).toDateString()).toEqual(
-      currentDate
-    );
-    expect(updatedRequest2?.lastEditDate).toBeDefined();
-    expect(new Date(updatedRequest2!.lastEditDate).toDateString()).toEqual(
-      currentDate
-    );
-  });
-
-  it("returns errors for invalid IDs and statuses", async () => {
-    const ids = await getRequestIds();
-    const invalidId = new ObjectId();
-
-    const request = new Request("http://localhost/api/request", {
-      method: "PATCH",
-      body: JSON.stringify([
-        { id: invalidId, status: RequestStatus.APPROVED },
-        { id: "invalid-id", status: RequestStatus.COMPLETED },
-        { id: ids[1], status: "unknown" },
-      ]),
+      body: JSON.stringify({ ids, status: "invalid-status" }),
       headers: { "Content-Type": "application/json" },
     });
 
     const response = await PATCH(request);
 
+    expect(response.status).toBe(HTTP_STATUS_CODE.BAD_REQUEST);
     const responseData = await response.json();
-    expect(responseData.errors).toHaveLength(3);
-    // Use containEqual so order doesn't matter
-    expect(responseData.errors).toContainEqual({
-      id: invalidId.toString(),
-      invalidFields: ["id"],
-    });
-    expect(responseData.errors).toContainEqual({
-      id: "invalid-id",
-      invalidFields: ["id"],
-    });
-    expect(responseData.errors).toContainEqual({
-      id: ids[1],
-      invalidFields: ["status"],
-    });
+    expect(responseData.message).toEqual(RESPONSES.INVALID_INPUT.message);
   });
 
-  it("allows mixing valid and invalid updates", async () => {
-    const ids = await getRequestIds();
-
-    const request = new Request("http://localhost/api/request", {
-      method: "PATCH",
-      body: JSON.stringify([
-        { id: ids[0], status: RequestStatus.APPROVED },
-        { id: "invalid-id", status: RequestStatus.COMPLETED },
-        { id: ids[1], status: "unknown" },
-      ]),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    const response = await PATCH(request);
-
-    const responseData = await response.json();
-    expect(responseData.successfulUpdateCount).toBe(1);
-    expect(responseData.errors).toHaveLength(2);
-    expect(responseData.errors).toEqual([
-      { id: "invalid-id", invalidFields: ["id"] },
-      { id: ids[1], invalidFields: ["status"] },
-    ]);
-  });
-
-  it("does not update requests with invalid statuses", async () => {
-    const ids = await getRequestIds();
-
-    const originalRequest = await collections.requests.findOne({
-      _id: new ObjectId(ids[0]),
-    });
-
-    const request = new Request("http://localhost/api/request", {
-      method: "PATCH",
-      body: JSON.stringify([{ id: ids[0], status: "invalid-status" }]),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    await PATCH(request);
-
-    const updatedRequest = await collections.requests.findOne({
-      _id: new ObjectId(ids[0]),
-    });
-
-    expect(updatedRequest?.status).toBe(originalRequest?.status);
-    expect(updatedRequest?.lastEditDate).toBe(originalRequest?.lastEditDate);
-  });
-
-  it("adds errors if a database update fails", async () => {
+  it("returns 500 Internal Server Error if the database update fails", async () => {
     // Mock the updateMany method to simulate a database failure
     const originalUpdateMany = collections.requests.updateMany;
     collections.requests.updateMany = jest.fn().mockResolvedValue({
@@ -207,27 +74,119 @@ describe(PATCH.name, () => {
 
     const ids = await getRequestIds();
 
-    const request = new Request("http://localhost/api/request", {
+    const request = new Request("http://localhost/api/request/batch", {
       method: "PATCH",
-      body: JSON.stringify([
-        { id: ids[0], status: RequestStatus.APPROVED },
-        { id: ids[1], status: RequestStatus.APPROVED },
-      ]),
+      body: JSON.stringify({ ids, status: RequestStatus.APPROVED }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PATCH(request);
+
+    expect(response.status).toBe(HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+    const responseData = await response.json();
+    expect(responseData.message).toEqual(RESPONSES.UNKNOWN_ERROR.message);
+
+    // Restore the original method
+    collections.requests.updateMany = originalUpdateMany;
+  });
+
+  it("updates multiple requests with valid IDs", async () => {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request/batch", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ids: [ids[0], ids[1]],
+        status: RequestStatus.APPROVED,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    await PATCH(request);
+
+    const itemRequests = await collections.requests
+      .find({ _id: { $in: [new ObjectId(ids[0]), new ObjectId(ids[1])] } })
+      .toArray();
+
+    expect(itemRequests).toHaveLength(2);
+    itemRequests.forEach((req) => {
+      expect(req.status).toBe(RequestStatus.APPROVED);
+    });
+  });
+
+  it("updates lastEditDate for updated requests", async () => {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request/batch", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ids: [ids[0], ids[1]],
+        status: RequestStatus.APPROVED,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PATCH(request);
+
+    const itemRequests = await collections.requests
+      .find({ _id: { $in: [new ObjectId(ids[0]), new ObjectId(ids[1])] } })
+      .toArray();
+
+    expect(itemRequests).toHaveLength(2);
+    // Convert ISO strings to date strings
+    itemRequests.forEach((req) => {
+      expect(req.lastEditDate).toBeDefined();
+      expect(new Date(req.lastEditDate).toDateString()).toEqual(
+        new Date().toDateString()
+      );
+    });
+  });
+
+  it("returns invalid IDs in the response", async () => {
+    const ids = await getRequestIds();
+    const invalidId = "invalid-id";
+
+    const request = new Request("http://localhost/api/request/batch", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ids: [ids[0], invalidId],
+        status: RequestStatus.APPROVED,
+      }),
       headers: { "Content-Type": "application/json" },
     });
 
     const response = await PATCH(request);
 
     const responseData = await response.json();
-    expect(responseData.successfulUpdateCount).toBe(0);
-    expect(responseData.errors).toHaveLength(1);
-    expect(responseData.errors[0].message).toBe(
-      "An unknown error occurred while updating requests with this status."
-    );
-    expect(responseData.errors[0].status).toBe(RequestStatus.APPROVED);
+    expect(responseData.invalidIds).toHaveLength(1);
+    expect(responseData.invalidIds).toEqual(["invalid-id"]);
+  });
 
-    // Restore the original method
-    collections.requests.updateMany = originalUpdateMany;
+  it("updates valid IDs, even if some are invalid", async () => {
+    const ids = await getRequestIds();
+    const nonExistentId = new ObjectId().toString();
+
+    const request = new Request("http://localhost/api/request/batch", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ids: [ids[0], nonExistentId],
+        status: RequestStatus.APPROVED,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await PATCH(request);
+
+    const responseData = await response.json();
+    expect(responseData.invalidIds).toContain(nonExistentId);
+    expect(responseData.invalidIds).toHaveLength(1);
+
+    const itemRequests = await collections.requests
+      .find({ _id: new ObjectId(ids[0]) })
+      .toArray();
+
+    expect(itemRequests).toHaveLength(1);
+    expect(itemRequests[0].status).toBe(RequestStatus.APPROVED);
   });
 });
 

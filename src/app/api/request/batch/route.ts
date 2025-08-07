@@ -1,170 +1,91 @@
 import { ServerResponseBuilder } from "@/lib/builders/serverResponseBuilder";
 import { collections } from "@/lib/mongo";
-import {
-  HTTP_STATUS_CODE,
-  RESPONSES,
-  ResponseType,
-} from "@/lib/types/apiResponse";
-import { ItemRequestUpdate, RequestStatus } from "@/lib/types/request";
+import { HTTP_STATUS_CODE, ResponseType } from "@/lib/types/apiResponse";
+import { RequestStatus } from "@/lib/types/request";
 import { isValidRequestStatus } from "@/lib/validation/requests";
 import { ObjectId } from "mongodb";
 
 /**
- * Takes an array of updates, where each update has an `id` and a `status` field.
+ * Takes an `ids` array and a `status` string in the request body.
  *
- * Returns 400 Bad Request if the input is not an array. Individual updates can be invalid
+ * Returns 400 Bad Request if `ids` is not an array or `status` is not a valid Request Status. Individual updates can be invalid
+ *
+ * Returns 500 Internal Server Error if the database update fails. I'd like to add a check for if the find fails, but I haven't
+ * found a way yet.
  *
  * Returns 200 OK if input is valid, even if no updates were made. Response structure:
  *
  * ```json
  * {
  *  "message": "Requests updated successfully.",
- *  "errors": [
- *    {
- *      "id": "invalid_id",
- *      "invalidFields": ["status"]
- *    },
- *    {
- *      "id": "another_invalid_id",
- *      "invalidFields": ["id", "status"]
- *    },
- *    {
- *      "status": "approved",
- *      "message": "An unknown error occurred while updating requests with this status."
- *    }
- *  ],
- *  "successfulUpdateCount": 5
+ *  "invalidIds": ["invalid_id_1", "invalid_id_2"],
  *}
  * ```
- *
- * Updates are sorted by status to take advantage of MongoDB's `updateMany` operation.
- * Will update `lastEditDate` to the current date for each updated request.
+ * IDs are considered invalid if they are not valid ObjectId strings or if they do not correspond to existing requests in the database.
  *
  * This route performs a find operation to check if the IDs exist before attempting to update them,
- * so it can report non-existent IDs. I consider this a worthwhile trade-off, though it does make
- * the operation slower than a single update query.
+ * so it can report non-existent IDs. I consider being able to detect non-existent IDs worth the extra database query.
+ *
+ * I originally had this method take an array of updates, where each update has an `id` and a `status` field, but I
+ * found that it was more convenient to just take an array of IDs and a single status string. That way, I can return
+ * 500 Internal Server Error if the update fails for any reason.
+ *
+ * @see RequestStatus
  */
 export async function PATCH(request: Request) {
-  const requestData: ItemRequestUpdate[] = await request.json();
+  const {
+    ids,
+    status,
+  }: {
+    ids: string[];
+    status: RequestStatus;
+  } = await request.json();
 
-  if (!requestData || !Array.isArray(requestData)) {
+  if (!ids || !Array.isArray(ids)) {
     return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
   }
 
-  const errors: (
-    | {
-        id: string;
-        invalidFields: (keyof ItemRequestUpdate)[];
-      }
-    | {
-        status: RequestStatus;
-        message: string;
-      }
-  )[] = [];
-
-  let validUpdateRequests = requestData.filter((item) => {
-    const error: (typeof errors)[0] = {
-      id: item.id,
-      invalidFields: [],
-    };
-
-    if (!item.id || !ObjectId.isValid(item.id)) {
-      error.invalidFields.push("id");
-    }
-
-    if (!item.status || !isValidRequestStatus(item.status)) {
-      error.invalidFields.push("status");
-    }
-
-    if (error.invalidFields.length > 0) {
-      errors.push(error);
-      return false;
-    }
-
-    return true;
-  });
-
-  // Find the requests for valid IDs. I don't like the extra DB query here, but I can't think of a better way to detect non-existent IDs
-  const existingRequests = await collections.requests
-    .find({
-      _id: { $in: validUpdateRequests.map((item) => new ObjectId(item.id)) },
-    })
-    .toArray();
-
-  const existingRequestIds = new Set(
-    existingRequests.map((req) => req._id.toString())
-  );
-
-  // Filter out requests that do not exist in the database
-  validUpdateRequests = validUpdateRequests.filter((item) => {
-    if (existingRequestIds.has(item.id)) {
-      return true;
-    }
-
-    errors.push({
-      id: item.id,
-      invalidFields: ["id"],
-    });
-    return false;
-  });
-
-  // Sort updates by status to take advantage of updateMany
-  const updatesByStatus: Record<RequestStatus, ItemRequestUpdate[]> = {
-    [RequestStatus.PENDING]: [],
-    [RequestStatus.APPROVED]: [],
-    [RequestStatus.COMPLETED]: [],
-    [RequestStatus.REJECTED]: [],
-  };
-
-  validUpdateRequests.forEach((update) => {
-    updatesByStatus[update.status].push({
-      id: update.id,
-      status: update.status,
-    });
-  });
-
-  async function updateMany(ids: string[], status: RequestStatus) {
-    const result = await collections.requests.updateMany(
-      { _id: { $in: ids.map((id) => new ObjectId(id)) } },
-      { $set: { status, lastEditDate: new Date().toISOString() } }
-    );
-
-    if (!result.acknowledged) {
-      errors.push({
-        status,
-        message:
-          "An unknown error occurred while updating requests with this status.",
-      });
-      return null;
-    }
-
-    return result;
+  if (!isValidRequestStatus(status)) {
+    return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
   }
 
-  const updatePromises = Object.entries(updatesByStatus).map(
-    async ([status, updates]) => {
-      if (updates.length > 0) {
-        return updateMany(
-          updates.map((update) => update.id),
-          status as RequestStatus
-        );
-      }
-      return Promise.resolve();
+  const invalidIds: string[] = [];
+  const validIds: string[] = [];
+
+  ids.forEach((id) => {
+    if (!ObjectId.isValid(id)) {
+      invalidIds.push(id);
+    } else {
+      validIds.push(id);
+    }
+  });
+
+  // Find existing requests to check if the IDs are valid
+  const existingRequests = await collections.requests
+    .find({ _id: { $in: validIds.map((id) => new ObjectId(id)) } })
+    .toArray();
+
+  const existingIds = existingRequests.map((req) => req._id.toString());
+  invalidIds.push(...validIds.filter((id) => !existingIds.includes(id)));
+
+  const updateResult = await collections.requests.updateMany(
+    { _id: { $in: existingIds.map((id) => new ObjectId(id)) } },
+    {
+      $set: {
+        status,
+        lastEditDate: new Date().toISOString(),
+      },
     }
   );
 
-  const updateResults = await Promise.all(updatePromises);
-
-  const successfulUpdateCount = updateResults.reduce(
-    (acc, result) => acc + (result?.modifiedCount || 0),
-    0
-  );
+  if (!updateResult.acknowledged) {
+    return new ServerResponseBuilder(ResponseType.UNKNOWN_ERROR).build();
+  }
 
   return new Response(
     JSON.stringify({
       message: "Requests updated successfully.",
-      errors,
-      successfulUpdateCount,
+      invalidIds,
     }),
     {
       status: HTTP_STATUS_CODE.OK,

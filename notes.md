@@ -52,32 +52,27 @@
 ```
 
 **PATCH /api/request/batch**<br>
-Takes an array of updates, where each update has an `id` and a `status` field.
+Takes an `ids` array and a `status` string in the request body.
 
-Returns 400 Bad Request if the input is not an array. Individual updates can be invalid
+Returns 400 Bad Request if `ids` is not an array or `status` is not a valid Request Status. Individual updates can be invalid
+
+Returns 500 Internal Server Error if the database update fails. I'd like to add a check for if the find fails, but I haven't found a way yet.
 
 Returns 200 OK if input is valid, even if no updates were made. Response structure:
 
 ```json
 {
   "message": "Requests updated successfully.",
-  "errors": [
-    {
-      "id": "invalid_id",
-      "invalidFields": ["status"]
-    },
-    {
-      "id": "another_invalid_id",
-      "invalidFields": ["id", "status"]
-    }
-  ],
-  "successfulUpdateCount": 5
+  "invalidIds": ["invalid_id_1", "invalid_id_2"]
 }
 ```
 
-Updates are sorted by status to take advantage of MongoDB's `updateMany` operation. Will update `lastEditDate` to the current date for each updated request.
+IDs are considered invalid if they are not valid ObjectId strings or if they do not correspond to existing requests in the database.
 
-This route performs a find operation to check if the IDs exist before attempting to update them, so it can report non-existent IDs. I consider this a worthwhile trade-off, though it does make the operation slower than a single update.
+This route performs a find operation to check if the IDs exist before attempting to update them,
+so it can report non-existent IDs. I consider being able to detect non-existent IDs worth the extra database query.
+
+I originally had this method take an array of updates, where each update has an `id` and a `status` field, but I found that it was more convenient to just take an array of IDs and a single status string. That way, I can return 500 Internal Server Error if the update fails for any reason.
 
 **DELETE /api/request/batch**<br>
 Takes an array of IDs to delete. Returns 400 Bad Request if the input is not an array.

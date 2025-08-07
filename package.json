@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "npm run lint && next build",
     "lint": "next lint",
-    "test": "jest -i"
+    "test": "jest"
   },
   "dependencies": {
     "@shelf/jest-mongodb": "^5.2.2",

@@ -9,5 +9,4 @@ module.exports = {
     instance: {},
   },
   useSharedDBForAllJestWorkers: false,
-  mongoURLEnvName: "MONGODB_URI",
 };

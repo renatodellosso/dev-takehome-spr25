@@ -4,18 +4,18 @@
 
 - [x] Read the README [please please please]
 - [x] Something cool!
-- [ ] Back-end
-  - [ ] Minimum Requirements
+- [x] Back-end
+  - [x] Minimum Requirements
     - [x] Setup MongoDB database
     - [x] Setup item requests collection
-    - [ ] `PUT /api/request`
-    - [ ] `GET /api/request?page=_`
-  - [ ] Main Requirements
-    - [ ] `GET /api/request?status=pending`
-    - [ ] `PATCH /api/request`
-  - [ ] Above and Beyond
-    - [ ] Batch edits
-    - [ ] Batch deletes
+    - [x] `PUT /api/request`
+    - [x] `GET /api/request?page=_`
+  - [x] Main Requirements
+    - [x] `GET /api/request?status=pending`
+    - [x] `PATCH /api/request`
+  - [x] Above and Beyond
+    - [x] Batch edits
+    - [x] Batch deletes
 - [ ] Front-end
   - [ ] Minimum Requirements
     - [ ] Dropdown component
@@ -64,3 +64,18 @@ Returns 200 OK if input is valid, even if no updates were made. Response structu
 ```
 
 Updates are sorted by status to take advantage of MongoDB's `updateMany` operation. Will update `lastEditDate` to the current date for each updated request.
+
+This route performs a find operation to check if the IDs exist before attempting to update them, so it can report non-existent IDs. I consider this a worthwhile trade-off, though it does make the operation slower than a single update.
+
+**DELETE /api/request/batch**
+Takes an array of IDs to delete. Returns 400 Bad Request if the input is not an array.
+
+Returns 200 OK if input is valid, even if no requests were deleted. Response structure:
+
+```json
+{
+  "message": "Requests deleted successfully.",
+  "invalidIds": ["invalid_id_1", "invalid_id_2"],
+  "successfulDeleteCount": 3
+}
+```

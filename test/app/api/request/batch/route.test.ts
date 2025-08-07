@@ -1,4 +1,4 @@
-import { PATCH } from "@/app/api/request/batch/route";
+import { DELETE, PATCH } from "@/app/api/request/batch/route";
 import { collections } from "@/lib/mongo";
 import { HTTP_STATUS_CODE, RESPONSES } from "@/lib/types/apiResponse";
 import { getSeedRequests, RequestStatus } from "@/lib/types/request";
@@ -124,11 +124,13 @@ describe(PATCH.name, () => {
 
   it("returns errors for invalid IDs and statuses", async () => {
     const ids = await getRequestIds();
+    const invalidId = new ObjectId();
 
     const request = new Request("http://localhost/api/request", {
       method: "PATCH",
       body: JSON.stringify([
-        { id: "invalid-id", status: RequestStatus.APPROVED },
+        { id: invalidId, status: RequestStatus.APPROVED },
+        { id: "invalid-id", status: RequestStatus.COMPLETED },
         { id: ids[1], status: "unknown" },
       ]),
       headers: { "Content-Type": "application/json" },
@@ -137,11 +139,20 @@ describe(PATCH.name, () => {
     const response = await PATCH(request);
 
     const responseData = await response.json();
-    expect(responseData.errors).toHaveLength(2);
-    expect(responseData.errors).toEqual([
-      { id: "invalid-id", invalidFields: ["id"] },
-      { id: ids[1], invalidFields: ["status"] },
-    ]);
+    expect(responseData.errors).toHaveLength(3);
+    // Use containEqual so order doesn't matter
+    expect(responseData.errors).toContainEqual({
+      id: invalidId.toString(),
+      invalidFields: ["id"],
+    });
+    expect(responseData.errors).toContainEqual({
+      id: "invalid-id",
+      invalidFields: ["id"],
+    });
+    expect(responseData.errors).toContainEqual({
+      id: ids[1],
+      invalidFields: ["status"],
+    });
   });
 
   it("allows mixing valid and invalid updates", async () => {
@@ -189,5 +200,86 @@ describe(PATCH.name, () => {
 
     expect(updatedRequest?.status).toBe(originalRequest?.status);
     expect(updatedRequest?.lastEditDate).toBe(originalRequest?.lastEditDate);
+  });
+});
+
+describe(DELETE.name, () => {
+  it("returns 200 OK for valid request data", async () => {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request", {
+      method: "DELETE",
+      body: JSON.stringify([ids[0]]),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await DELETE(request);
+
+    expect(response.status).toBe(HTTP_STATUS_CODE.OK);
+    const responseData = await response.json();
+    expect(responseData.message).toEqual("Requests deleted successfully.");
+  });
+
+  it("returns 400 Bad Request for non-array request data", async () => {
+    const request = new Request("http://localhost/api/request", {
+      method: "DELETE",
+      body: JSON.stringify({ id: "invalid-id" }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await DELETE(request);
+
+    expect(response.status).toBe(HTTP_STATUS_CODE.BAD_REQUEST);
+    const responseData = await response.json();
+    expect(responseData.message).toEqual(RESPONSES.INVALID_INPUT.message);
+  });
+
+  it("deletes multiple requests with valid IDs", async () => {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request", {
+      method: "DELETE",
+      body: JSON.stringify([ids[0], ids[1]]),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await DELETE(request);
+
+    const requests = await collections.requests
+      .find({ _id: { $in: [new ObjectId(ids[0]), new ObjectId(ids[1])] } })
+      .toArray();
+    expect(requests).toHaveLength(0);
+  });
+
+  it("adds invalid IDs to the response", async () => {
+    const ids = await getRequestIds();
+    const invalidId = "invalid-id";
+
+    const request = new Request("http://localhost/api/request", {
+      method: "DELETE",
+      body: JSON.stringify([ids[0], invalidId]),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await DELETE(request);
+
+    const responseData = await response.json();
+    expect(responseData.invalidIds).toHaveLength(1);
+    expect(responseData.invalidIds).toEqual(["invalid-id"]);
+  });
+
+  it("returns a correct successfulDeleteCount", async () => {
+    const ids = await getRequestIds();
+
+    const request = new Request("http://localhost/api/request", {
+      method: "DELETE",
+      body: JSON.stringify([ids[0], ids[1], new ObjectId().toString()]),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const response = await DELETE(request);
+
+    const responseData = await response.json();
+    expect(responseData.successfulDeleteCount).toBe(2);
   });
 });

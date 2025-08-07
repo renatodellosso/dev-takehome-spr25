@@ -17,7 +17,7 @@ export async function PATCH(request: Request) {
     invalidFields: (keyof ItemRequestUpdate)[];
   }[] = [];
 
-  const validUpdateRequests = requestData.filter((item) => {
+  let validUpdateRequests = requestData.filter((item) => {
     const error: (typeof errors)[0] = {
       id: item.id,
       invalidFields: [],
@@ -37,6 +37,30 @@ export async function PATCH(request: Request) {
     }
 
     return true;
+  });
+
+  // Find the requests for valid IDs. I don't like the extra DB query here, but I can't think of a better way to detect non-existent IDs
+  const existingRequests = await collections.requests
+    .find({
+      _id: { $in: validUpdateRequests.map((item) => new ObjectId(item.id)) },
+    })
+    .toArray();
+
+  const existingRequestIds = new Set(
+    existingRequests.map((req) => req._id.toString())
+  );
+
+  // Filter out requests that do not exist in the database
+  validUpdateRequests = validUpdateRequests.filter((item) => {
+    if (existingRequestIds.has(item.id)) {
+      return true;
+    }
+
+    errors.push({
+      id: item.id,
+      invalidFields: ["id"],
+    });
+    return false;
   });
 
   // Sort updates by status to take advantage of updateMany
@@ -85,6 +109,40 @@ export async function PATCH(request: Request) {
       message: "Requests updated successfully.",
       errors,
       successfulUpdateCount,
+    }),
+    {
+      status: HTTP_STATUS_CODE.OK,
+    }
+  );
+}
+
+export async function DELETE(request: Request) {
+  const requestData: string[] = await request.json();
+
+  if (!requestData || !Array.isArray(requestData)) {
+    return new ServerResponseBuilder(ResponseType.INVALID_INPUT).build();
+  }
+
+  const invalidIds: string[] = [];
+  const validIds: string[] = [];
+
+  requestData.forEach((id) => {
+    if (!ObjectId.isValid(id)) {
+      invalidIds.push(id);
+    } else {
+      validIds.push(id);
+    }
+  });
+
+  const deleteResult = await collections.requests.deleteMany({
+    _id: { $in: validIds.map((id) => new ObjectId(id)) },
+  });
+
+  return new Response(
+    JSON.stringify({
+      message: "Requests deleted successfully.",
+      invalidIds,
+      successfulDeleteCount: deleteResult.deletedCount,
     }),
     {
       status: HTTP_STATUS_CODE.OK,

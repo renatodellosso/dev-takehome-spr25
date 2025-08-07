@@ -2,7 +2,11 @@ import { GET, PATCH, PUT } from "@/app/api/request/route";
 import { PAGINATION_PAGE_SIZE } from "@/lib/constants/config";
 import { collections } from "@/lib/mongo";
 import { RESPONSES } from "@/lib/types/apiResponse";
-import { ItemRequest, RequestStatus } from "@/lib/types/request";
+import {
+  getSeedRequests,
+  ItemRequest,
+  RequestStatus,
+} from "@/lib/types/request";
 import { isValidItemRequest } from "@/lib/validation/requests";
 import { ObjectId, WithId } from "mongodb";
 
@@ -117,35 +121,9 @@ describe(PUT.name, () => {
 });
 
 describe(GET.name, () => {
-  function newItemRequest(index: number): ItemRequest {
-    const DAY_TO_MS = 24 * 60 * 60 * 1000;
-    const today = new Date();
-
-    const creationDate = new Date(today.getTime() - index * DAY_TO_MS);
-    const editDate = new Date(today.getTime() + index * DAY_TO_MS);
-
-    const possibleStatuses = Object.values(RequestStatus);
-
-    return {
-      requestorName: `User ${index}`,
-      itemRequested: `Item ${index}`,
-      creationDate: creationDate.toISOString(),
-      lastEditDate: editDate.toISOString(),
-      status: possibleStatuses[index % possibleStatuses.length],
-    };
-  }
-
-  /**
-   *  Edit dates are in reverse order of creation dates to test sorting
-   */
-  const SEED_REQUESTS: ItemRequest[] = Array.from(
-    { length: PAGINATION_PAGE_SIZE * Object.values(RequestStatus).length * 2 }, // 2 pages of each status
-    (_, i) => newItemRequest(i)
-  );
-
   beforeEach(async () => {
     // Seed the database with test data
-    await collections.requests.insertMany(SEED_REQUESTS);
+    await collections.requests.insertMany(getSeedRequests());
   });
 
   it("return 200 OK for a valid request", async () => {
@@ -382,7 +360,7 @@ describe(PATCH.name, () => {
   let requestId: string;
 
   beforeEach(async () => {
-    // Seed the database with a request to update
+    // Seed the database with a request to update and set requestId
     const itemRequest: ItemRequest = {
       requestorName: "Update Test",
       itemRequested: "Update Item",

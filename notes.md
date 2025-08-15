@@ -31,10 +31,12 @@
 
 # Notes
 
-- You can check DB connection with the `GET /api/status/` endpoint.
+- You can check the DB connection with the `GET /api/status/` endpoint.
 - Run tests with `npm run test`. Tests are in the `test` directory, which mirrors the `src` directory structure (`src/a/b.ts` is tested by `test/a/b.test.ts`). Describe blocks use `.name` so that functions can be renamed easily.
-- Running `npm run test` might take a minute the first time; it has to download a MongoDB binary for the in-memory MongoDB server that tests use. I don't love this, but I didn't find a better way to test API routes.
+- Running `npm run test` might take a minute the first time; it has to download a MongoDB binary for the in-memory MongoDB server that tests use. I don't love this, but I didn't find a better way to test API routes. I tried mocking the mongo.ts module, but Jest had trouble with transforming the `bson` module.
+- There's no clean separation between unit and integration tests here. The API tests are effectively integration tests, but the other tests are unit tests. If I had more time, I'd rather have unit tests and full end-to-end tests with something like Playwright, and have a clean division between the two. Irrespective of workload, integration tests that test only certain parts of the stack are lower on my priority list than E2E and unit tests. I think there is value in testing the integration between units, but I suspect E2E tests would catch most of the issues that integration tests would also catch, and unit tests would provide the most utility for isolating the causes of bugs. Though, if I'm really minimal on tests, but am willing to spend more effort on setup, I'd just have E2E tests since the mocking for true unit tests can be tedious. Since I've only done the back-end, I don't see value in E2E tests since Jest can test the API just fine.
 - Dates are saved as ISO strings to avoid problems with Mongo saving dates as strings. I'm not 100% sure how I feel about this choice.
+- API routes are not wrapped in try/catch blocks, since Next.js automatically returns a 500 Internal Server Error for uncaught exceptions.
 - PUT /api/request returns a JSON object, like so:
 
 ```json

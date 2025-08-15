@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm run lint && next build",
+    "start": "next start",
     "lint": "next lint",
     "test": "jest"
   },

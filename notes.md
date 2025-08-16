@@ -37,6 +37,7 @@
 - There's no clean separation between unit and integration tests here. Most of the API tests do not mock the DB. I could mock the DB, but the benefit of validating DB interactions outweighs the benefit of cleanly defined unit tests. Also mocking the DB for everything is rather cumbersome.
 - Dates are saved as ISO strings to avoid problems with Mongo saving dates as strings. I'm not 100% sure how I feel about this choice.
 - API routes are not wrapped in try/catch blocks, since Next.js automatically returns a 500 Internal Server Error for uncaught exceptions.
+- API routes have documentation comments above them.
 - PUT /api/request returns a JSON object, like so:
 
 ```json

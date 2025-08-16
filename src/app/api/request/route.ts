@@ -59,6 +59,7 @@ export async function PUT(request: Request) {
   const insertResult = await collections.requests.insertOne(itemRequest);
 
   if (!insertResult.acknowledged) {
+    // DB insert failed
     return new ServerResponseBuilder(ResponseType.UNKNOWN_ERROR).build();
   }
 

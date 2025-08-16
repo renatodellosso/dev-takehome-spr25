@@ -34,7 +34,7 @@
 - You can check the DB connection with the `GET /api/status/` endpoint.
 - Run tests with `npm run test`. Tests are in the `test` directory, which mirrors the `src` directory structure (`src/a/b.ts` is tested by `test/a/b.test.ts`). Describe blocks use `.name` so that functions can be renamed easily.
 - Running `npm run test` might take a minute the first time; it has to download a MongoDB binary for the in-memory MongoDB server that tests use. I don't love this, but I didn't find a better way to test API routes. I tried mocking the mongo.ts module, but Jest had trouble with transforming the `bson` module.
-- There's no clean separation between unit and integration tests here. Most of the API tests do not mock the DB. I could mock the DB, but the benefit of validating DB interactions outweighs the benefit of cleanly defined unit tests. Also mocking the DB for everything is rather cumbersome.
+- There's no clean separation between unit and integration tests here. Most of the API tests do not mock the DB. I could mock the DB, but the benefit of validating DB interactions outweighs the benefit of cleanly defined unit tests. Also mocking the DB for everything is rather cumbersome. I didn't add any end-to-end tests since I didn't do the front-end.
 - Dates are saved as ISO strings to avoid problems with Mongo saving dates as strings. I'm not 100% sure how I feel about this choice.
 - API routes are not wrapped in try/catch blocks, since Next.js automatically returns a 500 Internal Server Error for uncaught exceptions.
 - API routes have documentation comments above them.
